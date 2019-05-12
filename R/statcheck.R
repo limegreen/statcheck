@@ -8,41 +8,6 @@ statcheck <-
            OneTailedTxt = FALSE,
            AllPValues = FALSE){
     
-    # Create empty data frame for main result ---------------------------------
-    
-    Res <-
-      data.frame(Source = NULL,
-                 Statistic = NULL,
-                 df1 = NULL,
-                 df2 = NULL,
-                 Test.Comparison = NULL,
-                 Value = NULL,
-                 Reported.Comparison = NULL,
-                 Reported.P.Value = NULL,
-                 Computed = NULL,
-                 Error = NULL,
-                 DecisionError = NULL,
-                 CopyPaste = NULL,
-                 Location = NULL,
-                 stringsAsFactors = FALSE,
-                 dec = NULL,
-                 testdec = NULL,
-                 OneTail = NULL,
-                 OneTailedInTxt = NULL,
-                 APAfactor = NULL)
-    
-    class(Res) <- c("statcheck", "data.frame")
-    OneTailedInTxt <- NULL
-
-    # Create empty data frame for p values ------------------------------------
-
-    pRes <- data.frame(Source = NULL,
-                       Statistic = NULL,
-                       Reported.Comparison = NULL,
-                       Reported.P.Value = NULL,
-                       Raw = NULL,
-                       stringsAsFactors = FALSE)
-    
     if (length(x) == 0)
       return(Res)
     
