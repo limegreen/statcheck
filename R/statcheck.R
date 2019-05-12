@@ -7,9 +7,7 @@ statcheck <-
            pZeroError = TRUE,
            OneTailedTxt = FALSE,
            AllPValues = FALSE){
-    
-    if (length(x) == 0)
-      return(Res)
+  
     
     if (is.null(names(x)))
       names(x) <-  1:length(x)
