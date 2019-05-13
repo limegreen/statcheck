@@ -8,9 +8,14 @@ statcheck <-
            OneTailedTxt = FALSE,
            AllPValues = FALSE){
   
+    # create empty dataframes to append extracted results in the loop
+    pRes <- NULL
+    Res <- NULL
     
-    if (is.null(names(x)))
+    # if the input object doesn't have a name, number the items in the list
+    if (is.null(names(x))){
       names(x) <-  1:length(x)
+    }
     
 
     # Set-up progress bar -----------------------------------------------------
@@ -28,61 +33,11 @@ statcheck <-
 
       # extract all p values in order to calculate the ratio (statcheck results)/(total # of p values)
       
-      # p-values
-      # Get location of p-values in text:
-      pLoc <-
-        gregexpr("([^a-z]n.?s.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*)",
-                 txt,
-                 ignore.case = TRUE)[[1]]
+      pvalues <- extract_p(txt)
       
-      if (pLoc[1] != -1) {
-        # Get raw text of p-values:
-        pRaw <-
-          substring(txt, pLoc, pLoc + attr(pLoc, "match.length") - 1)
-        
-        nums <-
-          gregexpr("(\\d*\\.?\\d+\\s?e?-?\\d*)|ns", pRaw, ignore.case = TRUE)
-        
-        # Extract p-values
-        suppressWarnings(pValsChar <-
-                           substring(
-                             pRaw,
-                             sapply(nums, '[', 1),
-                             sapply(nums, function(x)
-                               x[1] + attr(x, "match.length")[1] - 1)
-                           ))
-        
-        suppressWarnings(pVals <- as.numeric(pValsChar))
-        
-        # Extract (in)equality
-        eqLoc <- gregexpr("p\\s?.?", pRaw)
-        pEq <- substring(
-          pRaw,
-          sapply(eqLoc, function(x)
-            x[1] + attr(x, "match.length")[1] - 1),
-          sapply(eqLoc, function(x)
-            x[1] + attr(x, "match.length")[1] - 1)
-        )
-        pEq[grepl("n.?s.?", pRaw, ignore.case = TRUE)] <- "ns"
-        
-        pvalues <- data.frame(
-          Source = names(x)[i],
-          Statistic = "p",
-          Reported.Comparison = pEq,
-          Reported.P.Value = pVals,
-          Raw = pRaw,
-          stringsAsFactors = FALSE
-        )
-        
-        # remove p values greater than one
-        pvalues <-
-          pvalues[pvalues$Reported.P.Value <= 1 |
-                    is.na(pvalues$Reported.P.Value), ]
-        
-        pRes <- rbind(pRes, pvalues)
-        rm(pvalues)
-        
-      }
+      # append and close
+      pRes <- rbind(pRes, pvalues)
+      rm(pvalues)
       
 
       # Search for one-sided tests ----------------------------------------------
@@ -108,7 +63,7 @@ statcheck <-
         # Get location of t-values in text:
         tLoc <-
           gregexpr(
-            "t\\s?\\(\\s?\\d*\\.?\\d+\\s?\\)\\s?[<>=]\\s?[^a-z\\d]{0,3}\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n.?s.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
+            "t\\s?\\(\\s?\\d*\\.?\\d+\\s?\\)\\s?[<>=]\\s?[^a-z\\d]{0,3}\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n\\.?s\\.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
             txt,
             ignore.case = TRUE
           )[[1]]
@@ -136,7 +91,7 @@ statcheck <-
           
           # Extract location of numbers:
           nums <-
-            gregexpr("(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|n.?s.?",
+            gregexpr("(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|n\\.?s\\.?",
                      tRaw,
                      ignore.case = TRUE)
           
@@ -196,7 +151,7 @@ statcheck <-
             sapply(eqLoc, function(x)
               x[1] + attr(x, "match.length")[1] - 1)
           )
-          pEq[grepl("n.?s.?", tRaw, ignore.case = TRUE)] <- "ns"
+          pEq[grepl("n\\.?s\\.?", tRaw, ignore.case = TRUE)] <- "ns"
           
           # determine number of decimals of p value
           dec <-
@@ -238,7 +193,7 @@ statcheck <-
         # 1 --> l or I
         FLoc <-
           gregexpr(
-            "F\\s?\\(\\s?\\d*\\.?(I|l|\\d+)\\s?,\\s?\\d*\\.?\\d+\\s?\\)\\s?[<>=]\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n.?s.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
+            "F\\s?\\(\\s?\\d*\\.?(I|l|\\d+)\\s?,\\s?\\d*\\.?\\d+\\s?\\)\\s?[<>=]\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n\\.?s\\.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
             txt,
             ignore.case = TRUE
           )[[1]]
@@ -253,7 +208,7 @@ statcheck <-
           
           # Extract location of numbers:
           nums <-
-            gregexpr("(\\d*\\.?\\d+\\s?e?-?\\d*)|n.?s.?", FRaw, ignore.case = TRUE)
+            gregexpr("(\\d*\\.?\\d+\\s?e?-?\\d*)|n\\.?s\\.?", FRaw, ignore.case = TRUE)
           
           # Extract df1:
           df1 <-
@@ -287,7 +242,7 @@ statcheck <-
           FRaw <- paste(FandDF, ")", FValsRaw, sep = "")
           
           # Extract F-values
-          numsF <- gregexpr("(\\d*\\.?\\d+)|n.?s.?", FValsRaw)
+          numsF <- gregexpr("(\\d*\\.?\\d+)|n\\.?s\\.?", FValsRaw)
           suppressWarnings(FValsChar <-
                              substring(
                                FValsRaw,
@@ -334,7 +289,7 @@ statcheck <-
             sapply(eqLoc, function(x)
               x[1] + attr(x, "match.length")[1] - 1)
           )
-          pEq[grepl("n.?s.?", FRaw, ignore.case = TRUE)] <- "ns"
+          pEq[grepl("n\\.?s\\.?", FRaw, ignore.case = TRUE)] <- "ns"
           
           # determine number of decimals of p value
           dec <-
@@ -374,7 +329,7 @@ statcheck <-
         # Get location of r-values in text:
         rLoc <-
           gregexpr(
-            "r\\s?\\(\\s?\\d*\\.?\\d+\\s?\\)\\s?[<>=]\\s?[^a-z\\d]{0,3}\\s?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n.?s.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
+            "r\\s?\\(\\s?\\d*\\.?\\d+\\s?\\)\\s?[<>=]\\s?[^a-z\\d]{0,3}\\s?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n\\.?s\\.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
             txt,
             ignore.case = TRUE
           )[[1]]
@@ -399,7 +354,7 @@ statcheck <-
           
           # Extract location of numbers:
           nums <-
-            gregexpr("(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|n.?s.?",
+            gregexpr("(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|n\\.?s\\.?",
                      rRaw,
                      ignore.case = TRUE)
           
@@ -460,7 +415,7 @@ statcheck <-
             sapply(eqLoc, function(x)
               x[1] + attr(x, "match.length")[1] - 1)
           )
-          pEq[grepl("n.?s.?", rRaw, ignore.case = TRUE)] <- "ns"
+          pEq[grepl("n\\.?s\\.?", rRaw, ignore.case = TRUE)] <- "ns"
           
           
           # determine number of decimals of p value
@@ -506,7 +461,7 @@ statcheck <-
         # Get location of z-values in text:
         zLoc <-
           gregexpr(
-            "[^a-z]z\\s?[<>=]\\s?[^a-z\\d]{0,3}\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n.?s.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
+            "[^a-z]z\\s?[<>=]\\s?[^a-z\\d]{0,3}\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n\\.?s\\.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
             txt,
             ignore.case = TRUE
           )[[1]]
@@ -538,7 +493,7 @@ statcheck <-
           
           # Extract location of numbers:
           nums <-
-            gregexpr("(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|n.?s.?",
+            gregexpr("(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|n\\.?s\\.?",
                      zRaw,
                      ignore.case = TRUE)
           
@@ -589,7 +544,7 @@ statcheck <-
             sapply(eqLoc, function(x)
               x[1] + attr(x, "match.length")[1] - 1)
           )
-          pEq[grepl("n.?s.?", zRaw, ignore.case = TRUE)] <- "ns"
+          pEq[grepl("n\\.?s\\.?", zRaw, ignore.case = TRUE)] <- "ns"
           
           # determine number of decimals of p value
           dec <-
@@ -630,7 +585,7 @@ statcheck <-
         # Get location of chi values or delta G in text:
         chi2Loc <-
           gregexpr(
-            "((\\[CHI\\]|\\[DELTA\\]G)\\s?|(\\s[^trFzQWBnD ]\\s?)|([^trFzQWBnD ]2\\s?))2?\\(\\s?\\d*\\.?\\d+\\s?(,\\s?N\\s?\\=\\s?\\d*\\,?\\d*\\,?\\d+\\s?)?\\)\\s?[<>=]\\s?\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n.?s.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
+            "((\\[CHI\\]|\\[DELTA\\]G)\\s?|(\\s[^trFzQWBnD ]\\s?)|([^trFzQWBnD ]2\\s?))2?\\(\\s?\\d*\\.?\\d+\\s?(,\\s?N\\s?\\=\\s?\\d*\\,?\\d*\\,?\\d+\\s?)?\\)\\s?[<>=]\\s?\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n\\.?s\\.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
             txt,
             ignore.case = TRUE
           )[[1]]
@@ -664,7 +619,7 @@ statcheck <-
           # Extract location of numbers:
           nums <-
             gregexpr(
-              "(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|n.?s.?",
+              "(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|n\\.?s\\.?",
               sub("^.*?\\(", "", chi2Raw),
               ignore.case = TRUE
             )
@@ -725,7 +680,7 @@ statcheck <-
             sapply(eqLoc, function(x)
               x[1] + attr(x, "match.length")[1] - 1)
           )
-          pEq[grepl("n.?s.?", chi2Raw, ignore.case = TRUE)] <- "ns"
+          pEq[grepl("n\\.?s\\.?", chi2Raw, ignore.case = TRUE)] <- "ns"
           
           # determine number of decimals of p value
           dec <-
@@ -766,7 +721,7 @@ statcheck <-
         # Get location of Q-values in text:
         QLoc <-
           gregexpr(
-            "Q\\s?-?\\s?(w|within|b|between)?\\s?\\(\\s?\\d*\\.?\\d+\\s?\\)\\s?[<>=]\\s?[^a-z\\d]{0,3}\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n.?s.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
+            "Q\\s?-?\\s?(w|within|b|between)?\\s?\\(\\s?\\d*\\.?\\d+\\s?\\)\\s?[<>=]\\s?[^a-z\\d]{0,3}\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n\\.?s\\.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
             txt,
             ignore.case = TRUE
           )[[1]]
@@ -813,7 +768,7 @@ statcheck <-
           
           # Extract location of numbers:
           nums <-
-            gregexpr("(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|n.?s.?",
+            gregexpr("(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|n\\.?s\\.?",
                      QRaw,
                      ignore.case = TRUE)
           
@@ -871,7 +826,7 @@ statcheck <-
                              x[1] + attr(x, "match.length")[1] - 1),
                            sapply(eqLoc, function(x)
                              x[1] + attr(x, "match.length")[1] - 1))
-          pEq[grepl("n.?s.?", QRaw, ignore.case = TRUE)] <- "ns"
+          pEq[grepl("n\\.?s\\.?", QRaw, ignore.case = TRUE)] <- "ns"
           
           # determine number of decimals of p value
           dec <-
