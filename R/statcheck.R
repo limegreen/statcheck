@@ -9,8 +9,12 @@ statcheck <-
            AllPValues = FALSE){
   
     # create empty dataframes to append the results that are extracted in each step of the loop
-    pRes <- NULL
-    Res <- NULL
+    pRes <- data.frame(NULL)
+    Res <- data.frame(NULL)
+    
+    if (length(x) == 0){
+      return(Res)
+    }
     
     # if the input object doesn't have a name, number the items in the list
     if (is.null(names(x))){
@@ -36,7 +40,10 @@ statcheck <-
       pvalues <- extract_p(txt)
       
       # append and close
-      pRes <- rbind(pRes, pvalues)
+      if(!is.null(pvalues)){
+        pRes <- rbind(pRes, pvalues)
+      }
+      
       rm(pvalues)
       
 
@@ -62,9 +69,12 @@ statcheck <-
         
         tRes <- extract_t(txt, OneTailedInTxt = OneTailedInTxt)
         
-          # Append, clean and close:
+        # Append, clean and close:
+        if(!is.null(tRes)){
           Res <- rbind(Res, tRes)
-          rm(tRes)
+        }
+      
+        rm(tRes)
       }
       
       # F-tests -----------------------------------------------------------------
@@ -75,8 +85,11 @@ statcheck <-
         FRes <- extract_F(txt, OneTailedInTxt = OneTailedInTxt)
         
           # Append, clean and close:
+        if(!is.null(FRes)){
           Res <- rbind(Res, FRes)
-          rm(FRes)
+        }
+          
+        rm(FRes)
         
       }
       
@@ -88,8 +101,11 @@ statcheck <-
         rRes <- extract_r(txt, OneTailedInTxt = OneTailedInTxt)
         
           # Append, clean and close:
+        if(!is.null(rRes)){
           Res <- rbind(Res, rRes)
-          rm(rRes)
+        }
+          
+        rm(rRes)
       }
       
 
@@ -97,405 +113,46 @@ statcheck <-
 
       # Extract z-tests:
       if ("Z" %in% stat) {
-        # Get location of z-values in text:
-        zLoc <-
-          gregexpr(
-            "[^a-z]z\\s?[<>=]\\s?[^a-z\\d]{0,3}\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n\\.?s\\.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
-            txt,
-            ignore.case = TRUE
-          )[[1]]
         
-        if (zLoc[1] != -1) {
-          # Get raw text of z-values:
-          zRaw <-
-            substring(txt, zLoc, zLoc + attr(zLoc, "match.length") - 1)
-          
-          # remove any character before test statistic
-          zRaw <- gsub(".?(z|Z)", "Z", zRaw, perl = TRUE)
-          
-          # remove commas (thousands separators)
-          zRaw <-
-            gsub("(?<=\\d),(?=\\d+\\.)", "", zRaw, perl = TRUE)
-          
-          # Replace weird codings of a minus sign with actual minus sign:
-          # First remove spaces
-          zRaw <-
-            gsub("(?<=\\=)\\s+(?=.*\\,)", "", zRaw, perl = TRUE)
-          
-          # Replace any weird string with a minus sign
-          zRaw <-
-            gsub("(?<=\\=)\\s?[^\\d\\.]+(?=.*\\,)", " -", zRaw, perl = TRUE)
-          
-          # Add spaces again:
-          zRaw <-
-            gsub("(?<=\\=)(?=(\\.|\\d))", " ", zRaw, perl = TRUE)
-          
-          # Extract location of numbers:
-          nums <-
-            gregexpr("(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|n\\.?s\\.?",
-                     zRaw,
-                     ignore.case = TRUE)
-          
-          # Extract z-values
-          suppressWarnings(zValsChar <-
-                             substring(
-                               zRaw,
-                               sapply(nums, '[', 1),
-                               sapply(nums, function(x)
-                                 x[1] + attr(x, "match.length")[1] - 1)
-                             ))
-          
-          suppressWarnings(zVals <- as.numeric(zValsChar))
-          
-          # Extract number of decimals test statistic
-          testdec <-
-            attr(regexpr("\\.\\d+", zValsChar), "match.length") - 1
-          testdec[testdec < 0] <- 0
-          
-          # Extract (in)equality test statistic
-          testEqLoc <- gregexpr("(z|Z|z'|Z')\\s?[<>=]", zRaw)
-          testEq <- substring(
-            zRaw,
-            sapply(testEqLoc, function(x)
-              x[1] + attr(x, "match.length")[1] - 1),
-            sapply(testEqLoc, function(x)
-              x[1] + attr(x, "match.length")[1] - 1)
-          )
-          
-          # Extract p-values
-          suppressWarnings(pValsChar <-
-                             substring(
-                               zRaw,
-                               sapply(nums, '[', 2),
-                               sapply(nums, function(x)
-                                 x[2] + attr(x, "match.length")[2] - 1)
-                             ))
-          
-          suppressWarnings(pVals <- as.numeric(pValsChar))
-          
-          # Extract (in)equality
-          eqLoc <-
-            gregexpr("p\\s?[<>=]", zRaw, ignore.case = TRUE)
-          pEq <- substring(
-            zRaw,
-            sapply(eqLoc, function(x)
-              x[1] + attr(x, "match.length")[1] - 1),
-            sapply(eqLoc, function(x)
-              x[1] + attr(x, "match.length")[1] - 1)
-          )
-          pEq[grepl("n\\.?s\\.?", zRaw, ignore.case = TRUE)] <- "ns"
-          
-          # determine number of decimals of p value
-          dec <-
-            attr(regexpr("\\.\\d+", pValsChar), "match.length") - 1
-          dec[dec < 0] <- 0
-          
-          # Create data frame:
-          zRes <- data.frame(
-            Source = names(x)[i],
-            Statistic = "Z",
-            df1 = NA,
-            df2 = NA,
-            Test.Comparison = testEq,
-            Value = zVals,
-            Reported.Comparison = pEq,
-            Reported.P.Value = pVals,
-            Computed = pnorm(abs(zVals), lower.tail = FALSE) *
-              2,
-            Location = zLoc,
-            Raw = zRaw,
-            stringsAsFactors = FALSE,
-            dec = dec,
-            testdec = testdec,
-            OneTailedInTxt = OneTailedInTxt
-          )
-          
-          # Append, clean and close:
+        zRes <- extract_z(txt, OneTailedInTxt = OneTailedInTxt)
+        
+        # Append, clean and close:
+        if(!is.null(zRes)){
           Res <- rbind(Res, zRes)
-          rm(zRes)
         }
+      
+        rm(zRes)
       }
       
-
       # Chi2-tests --------------------------------------------------------------
 
       # Chis2-values:
       if ("chisq" %in% stat) {
-        # Get location of chi values or delta G in text:
-        chi2Loc <-
-          gregexpr(
-            "((\\[CHI\\]|\\[DELTA\\]G)\\s?|(\\s[^trFzQWBnD ]\\s?)|([^trFzQWBnD ]2\\s?))2?\\(\\s?\\d*\\.?\\d+\\s?(,\\s?N\\s?\\=\\s?\\d*\\,?\\d*\\,?\\d+\\s?)?\\)\\s?[<>=]\\s?\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n\\.?s\\.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
-            txt,
-            ignore.case = TRUE
-          )[[1]]
         
-        if (chi2Loc[1] != -1) {
-          # Get raw text of chi2-values:
-          chi2Raw <-
-            substring(txt, chi2Loc, chi2Loc + attr(chi2Loc, "match.length") - 1)
-          substr(chi2Raw, 1, 1)[grepl("\\d", substr(chi2Raw, 1, 1))] <-
-            " "
-          
-          # remove sample size if reported for calculations
-          # save full result for "Raw" in final data frame
-          chi2Raw_inclN <- chi2Raw
-          chi2Raw <-
-            gsub("N\\s?=\\s?\\d*\\,?\\d*\\,?\\d*",
-                 "",
-                 chi2Raw,
-                 ignore.case = TRUE)
-          
-          # remove commas (thousands separators)
-          chi2Raw <-
-            gsub("(?<=\\d),(?=\\d+\\.)", "", chi2Raw, perl = TRUE)
-          
-          # bug fix: remove extra opening brackets
-          # if a chi2 result is reported between brackets, and the chi is not read by statcheck
-          # the opening bracket is translated as the chi symbol, and extracting the numerics goes wrong
-          chi2Raw <-
-            gsub("\\((?=2\\s?\\()", "", chi2Raw, perl = TRUE)
-          
-          # Extract location of numbers:
-          nums <-
-            gregexpr(
-              "(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|n\\.?s\\.?",
-              sub("^.*?\\(", "", chi2Raw),
-              ignore.case = TRUE
-            )
-          
-          # Extract df:
-          df <-
-            as.numeric(substring(
-              sub("^.*?\\(", "", chi2Raw),
-              sapply(nums, '[', 1),
-              sapply(nums, function(x)
-                x[1] + attr(x, "match.length")[1] - 1)
-            ))
-          
-          # Extract chi2-values
-          suppressWarnings(chi2ValsChar <-
-                             substring(
-                               sub("^.*?\\(", "", chi2Raw),
-                               sapply(nums, '[', 2),
-                               sapply(nums, function(x)
-                                 x[2] + attr(x, "match.length")[2] - 1)
-                             ))
-          
-          suppressWarnings(chi2Vals <- as.numeric(chi2ValsChar))
-          
-          # Extract number of decimals test statistic
-          testdec <-
-            attr(regexpr("\\.\\d+", chi2ValsChar), "match.length") - 1
-          testdec[testdec < 0] <- 0
-          
-          # Extract (in)equality test statistic
-          testEqLoc <- gregexpr("\\)\\s?[<>=]", chi2Raw)
-          testEq <- substring(
-            chi2Raw,
-            sapply(testEqLoc, function(x)
-              x[1] + attr(x, "match.length")[1] - 1),
-            sapply(testEqLoc, function(x)
-              x[1] + attr(x, "match.length")[1] - 1)
-          )
-          
-          # Extract p-values
-          suppressWarnings(pValsChar <-
-                             substring(
-                               sub("^.*?\\(", "", chi2Raw),
-                               sapply(nums, '[', 3),
-                               sapply(nums, function(x)
-                                 x[3] + attr(x, "match.length")[3] - 1)
-                             ))
-          
-          suppressWarnings(pVals <- as.numeric(pValsChar))
-          
-          # Extract (in)equality
-          eqLoc <-
-            gregexpr("p\\s?[<>=]", chi2Raw, ignore.case = TRUE)
-          pEq <- substring(
-            chi2Raw,
-            sapply(eqLoc, function(x)
-              x[1] + attr(x, "match.length")[1] - 1),
-            sapply(eqLoc, function(x)
-              x[1] + attr(x, "match.length")[1] - 1)
-          )
-          pEq[grepl("n\\.?s\\.?", chi2Raw, ignore.case = TRUE)] <- "ns"
-          
-          # determine number of decimals of p value
-          dec <-
-            attr(regexpr("\\.\\d+", pValsChar), "match.length") - 1
-          dec[dec < 0] <- 0
-          
-          # Create data frame:
-          chi2Res <- data.frame(
-            Source = names(x)[i],
-            Statistic = "Chi2",
-            df1 = df,
-            df2 = NA,
-            Test.Comparison = testEq,
-            Value = chi2Vals,
-            Reported.Comparison = pEq,
-            Reported.P.Value = pVals,
-            Computed = pchisq(chi2Vals, df, lower.tail =
-                                FALSE),
-            Location = chi2Loc,
-            Raw = chi2Raw_inclN,
-            stringsAsFactors = FALSE,
-            dec = dec,
-            testdec = testdec,
-            OneTailedInTxt = OneTailedInTxt
-          )
+        chi2Res <- extract_chi2(txt, OneTailedInTxt = OneTailedInTxt)
           
           # Append, clean and close:
+        if(!is.null(chi2Res)){
           Res <- rbind(Res, chi2Res)
-          rm(chi2Res)
         }
+        
+          rm(chi2Res)
       }
       
-
       # Q-tests -----------------------------------------------------------------
 
       # Extract Q-tests
       if ("Q" %in% stat) {
-        # Get location of Q-values in text:
-        QLoc <-
-          gregexpr(
-            "Q\\s?-?\\s?(w|within|b|between)?\\s?\\(\\s?\\d*\\.?\\d+\\s?\\)\\s?[<>=]\\s?[^a-z\\d]{0,3}\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]n\\.?s\\.?)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",
-            txt,
-            ignore.case = TRUE
-          )[[1]]
         
-        if (QLoc[1] != -1) {
-          # Get raw text of t-values:
-          QRaw <-
-            substring(txt, QLoc, QLoc + attr(QLoc, "match.length") - 1)
-          
-          # remove commas (thousands separators)
-          QRaw <- gsub("(?<=\\d),(?=\\d+)", "", QRaw, perl = TRUE)
-          
-          # Replace weird codings of a minus sign with actual minus sign:
-          # First remove spaces
-          QRaw <-
-            gsub("(?<=\\=)\\s+(?=.*\\,)", "", QRaw, perl = TRUE)
-          
-          # Replace any weird string with a minus sign
-          QRaw <-
-            gsub("(?<=\\=)\\s?[^\\d\\.]+(?=.*\\,)", " -", QRaw, perl = TRUE)
-          
-          # Add spaces again:
-          QRaw <-
-            gsub("(?<=\\=)(?=(\\.|\\d))", " ", QRaw, perl = TRUE)
-          
-          # Extract type of Q-test (general, within, or between)
-          QtypeLoc <-
-            gregexpr("Q\\s?-?\\s?(w|within|b|between)?",
-                     QRaw,
-                     ignore.case = TRUE)
-          QtypeRaw <-
-            substring(QRaw,
-                      sapply(QtypeLoc, '[', 1),
-                      sapply(QtypeLoc, function(x)
-                        x[1] + attr(x, "match.length")[1] - 1))
-          
-          Qtype <- rep(NA, length(QtypeRaw))
-          
-          Qtype[grepl("Q\\s?-?\\s?(w|within)", QtypeRaw, ignore.case = TRUE)] <-
-            "Qw"
-          Qtype[grepl("Q\\s?-?\\s?(b|between)", QtypeRaw, ignore.case = TRUE)] <-
-            "Qb"
-          Qtype[is.na(Qtype)] <- "Q"
-          
-          # Extract location of numbers:
-          nums <-
-            gregexpr("(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|n\\.?s\\.?",
-                     QRaw,
-                     ignore.case = TRUE)
-          
-          # Extract df:
-          df <-
-            as.numeric(substring(
-              QRaw,
-              sapply(nums, '[', 1),
-              sapply(nums, function(x)
-                x[1] + attr(x, "match.length")[1] - 1)
-            ))
-          
-          # Extract Q-values
-          suppressWarnings(QValsChar <-
-                             substring(
-                               QRaw,
-                               sapply(nums, '[', 2),
-                               sapply(nums, function(x)
-                                 x[2] + attr(x, "match.length")[2] - 1)
-                             ))
-          
-          suppressWarnings(QVals <- as.numeric(QValsChar))
-          
-          # Extract number of decimals test statistic
-          testdec <-
-            attr(regexpr("\\.\\d+", QValsChar), "match.length") - 1
-          testdec[testdec < 0] <- 0
-          
-          # Extract (in)equality test statistic
-          testEqLoc <- gregexpr("\\)\\s?[<>=]", QRaw)
-          testEq <- substring(
-            QRaw,
-            sapply(testEqLoc, function(x)
-              x[1] + attr(x, "match.length")[1] - 1),
-            sapply(testEqLoc, function(x)
-              x[1] + attr(x, "match.length")[1] - 1)
-          )
-          
-          # Extract p-values
-          suppressWarnings(pValsChar <-
-                             substring(
-                               QRaw,
-                               sapply(nums, '[', 3),
-                               sapply(nums, function(x)
-                                 x[3] + attr(x, "match.length")[3] - 1)
-                             ))
-          
-          suppressWarnings(pVals <- as.numeric(pValsChar))
-          
-          # Extract (in)equality
-          eqLoc <-
-            gregexpr("p\\s?[<>=]", QRaw, ignore.case = TRUE)
-          pEq <- substring(QRaw,
-                           sapply(eqLoc, function(x)
-                             x[1] + attr(x, "match.length")[1] - 1),
-                           sapply(eqLoc, function(x)
-                             x[1] + attr(x, "match.length")[1] - 1))
-          pEq[grepl("n\\.?s\\.?", QRaw, ignore.case = TRUE)] <- "ns"
-          
-          # determine number of decimals of p value
-          dec <-
-            attr(regexpr("\\.\\d+", pValsChar), "match.length") - 1
-          dec[dec < 0] <- 0
-          
-          # Create data frame:
-          QRes <- data.frame(
-            Source = names(x)[i],
-            Statistic = Qtype,
-            df1 = NA,
-            df2 = df,
-            Test.Comparison = testEq,
-            Value = QVals,
-            Reported.Comparison = pEq,
-            Reported.P.Value = pVals,
-            Computed = pchisq(QVals, df, lower.tail =
-                                FALSE),
-            Location = QLoc,
-            Raw = QRaw,
-            stringsAsFactors = FALSE,
-            dec = dec,
-            testdec = testdec,
-            OneTailedInTxt = OneTailedInTxt
-          )
+        QRes <- extract_Q(txt, OneTailedInTxt = OneTailedInTxt)
           
           # Append, clean and close:
+        if(!is.null(QRes)){
           Res <- rbind(Res, QRes)
-          rm(QRes)
         }
+        
+        rm(QRes)
+        
       }
 
       # Close loop & progress bar -----------------------------------------------
